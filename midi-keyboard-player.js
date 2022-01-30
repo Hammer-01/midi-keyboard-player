@@ -49,19 +49,4 @@ function onWebMidiEnabled() {
             noteArray[e.dataBytes[0]].amp(e.dataBytes[1] / 127, 0.1);
         }
     })
-
-
-    // WebMidi.inputs.forEach(input => {
-    //   console.log(input.name);
-    //   // When a "note on" is received on MIDI channel 1, generate a random color start
-    //   input.channels[1].addListener("noteon", function(e) {
-    //     console.log(e);
-    //     console.log('we have received a note');
-    //     fill(random(255), random(255), random(255));
-    //     circle(random(width), random(height), 100);
-    //     console.log('yay');
-    //   });
-
-    // });
-
 }
