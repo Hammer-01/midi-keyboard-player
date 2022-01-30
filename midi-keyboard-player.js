@@ -4,7 +4,7 @@ let piano;
 let soundArray = [];
 
 function preload() {
-    piano = loadSound('piano-C4.wav');
+    //piano = loadSound('piano-C4.wav');
     // soundArray.push(loadSound('https://theremin.music.uiowa.edu/sound%20files/MIS/Piano_Other/piano/Piano.ff.A0.aiff'))
 }
 
