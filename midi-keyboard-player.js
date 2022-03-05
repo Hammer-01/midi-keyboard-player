@@ -35,7 +35,7 @@ function onWebMidiEnabled() {
     }
     
     // Add a listener on all the MIDI inputs that are detected
-    let keyboard = WebMidi.inputs[1];
+    let keyboard = WebMidi.inputs[0];
     keyboard.addListener("midimessage", e => {
         if (e.dataBytes != '') { // check if any input is sent
             // dataBytes -> [midiValueOfNote (0-127), keyPressStrength (0-127)]
