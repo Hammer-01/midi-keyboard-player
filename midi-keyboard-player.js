@@ -5,6 +5,8 @@ let soundArray = [];
 let sustain = false;
 let sustainedArray = [];
 let env;
+let recording = false;
+let recordingArray = [];
 
 function preload() {
     //piano = loadSound('piano-C4.wav');
@@ -15,7 +17,7 @@ function setup() {
     createCanvas(windowWidth, windowHeight);
     noStroke();
     textAlign(CENTER, CENTER);
-    text('Press Ctrl+Shift+J to open the console.\nClick anywhere on page to start audio', width/2, height/2);
+    text('Click anywhere on page to start audio\n\nPress s to start/stop recording\n\nPress Ctrl+Shift+J to open the console for more detailed information', width/2, height/2);
     userStartAudio(); // enable audio playing as soon as user interacts with page
 
     // TODO: Use envelopes to get proper ADSR
@@ -44,9 +46,9 @@ function onWebMidiEnabled() {
     
     // Add a listener on all the MIDI inputs that are detected
     let keyboard = WebMidi.inputs[0];
-    console.log("Found midi input: " + keyboard._midiInput.name);
+    console.log(`%cFound midi input: ${keyboard._midiInput.name}`, "color: darkgreen; font-weight: bold; font-size: 20px; background-color: yellow");
     keyboard.addListener("midimessage", e => {
-        // console.log(sustainedArray);
+        // console.log(recording);
         switch (e.message.type) {
             case 'noteon':
                 // console.log(e);
@@ -86,7 +88,7 @@ function onWebMidiEnabled() {
                     case 64: // sustain pedal
                         sustain = !!e.dataBytes[1]; // e.dataBytes[1] = 127 if pedal pressed, else 0
                         if (!sustain) {
-                            for (i in sustainedArray) { // stop each note that was sustained
+                            for (let i in sustainedArray) { // stop each note that was sustained
                                 noteArray[i].amp(0, 0.1);
                             }
                             sustainedArray = []; // reset the array
@@ -101,9 +103,57 @@ function onWebMidiEnabled() {
                 console.log('programchange', e.dataBytes);
                 break;
             case 'clock':
+                if (recording) {
+                    let frame = {timestamp: e.timestamp, notes: []};
+                    for (let i in noteArray) {
+                        // Add an empty gap if there is no amplitude for playback optimisation
+                        let amp = noteArray[i].getAmp();
+                        if (amp || recordingArray.at(-1)?.notes[i]) frame.notes.push(amp);
+                        else frame.notes.length++;
+                    }
+                    recordingArray.push(frame);
+                    if (recordingArray.length > 20000) {
+                        recording = false;
+                        alert('Recording automatically stopped because it is too long!\nPress p to play');
+                    }
+                }
                 break;
             default:
                 console.log('UNKNOWN MESSAGE TYPE: ' + e.message.type);
         }
     });
+}
+
+// TODO: Make this function asynchronous
+function playRecording() {
+    let diff = performance.now() - recordingArray[0].timestamp;
+    let len = recordingArray.length;
+
+    let frameIndex = 0;
+    while (frameIndex < len) {
+        if (performance.now() - diff > recordingArray[frameIndex].timestamp) {
+            for (let i in recordingArray[frameIndex].notes) {
+                noteArray[i].amp(recordingArray[frameIndex].notes[i]);
+            }
+            frameIndex++;
+        }
+    }
+    
+    // Reset all keys to 0 amplitude if they were playing when recording finished
+    for (let i in noteArray) {
+        noteArray[i].amp(0);
+    }
+}
+
+function keyPressed(e) {
+    if (e.key.toLowerCase() === 's') {
+        let doRec = true;
+        if (!recording) {
+            doRec = confirm('Begin recording? This will delete any previous recording');
+            if (doRec) recordingArray = [];
+        }
+        else alert('Recording complete! Press p to play');
+        if (doRec) recording = !recording;
+    }
+    if (e.key.toLowerCase() === 'p') playRecording();
 }
