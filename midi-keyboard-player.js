@@ -7,6 +7,9 @@ let sustainedArray = [];
 let env;
 let recording = false;
 let recordingArray = [];
+let recNoteArray = [];
+let playing = false;
+let looping = false;
 
 function preload() {
     //piano = loadSound('piano-C4.wav');
@@ -28,6 +31,9 @@ function setup() {
         noteArray.push(new p5.Oscillator(midiToFreq(i)));
         noteArray[i].start();
         noteArray[i].amp(0);
+        recNoteArray.push(new p5.Oscillator(midiToFreq(i)));
+        recNoteArray[i].start();
+        recNoteArray[i].amp(0);
     }
 
     // Enable WebMidi.js and trigger the onWebMidiEnabled() function when ready
@@ -54,7 +60,7 @@ function onWebMidiEnabled() {
                 // console.log(e);
                 // dataBytes -> [midiValueOfNote (0-127), keyPressStrength (0-127)]
                 // data -> [statusByte, dataBytes[0], dataBytes[1]]
-                console.log(e.dataBytes);
+                console.debug(e.dataBytes); // only show if verbose is on
         
                 if (e.dataBytes[0] === 7) {
                     outputVolume(e.dataBytes[1] / 127);
@@ -114,7 +120,7 @@ function onWebMidiEnabled() {
                     recordingArray.push(frame);
                     if (recordingArray.length > 20000) {
                         recording = false;
-                        alert('Recording automatically stopped because it is too long!\nPress p to play');
+                        alert('Recording automatically stopped because it is too long!\nPress p to play/pause');
                     }
                 }
                 break;
@@ -125,35 +131,68 @@ function onWebMidiEnabled() {
 }
 
 // TODO: Make this function asynchronous
-function playRecording() {
-    let diff = performance.now() - recordingArray[0].timestamp;
+async function playRecording() {
     let len = recordingArray.length;
+    // Exit early if there is no recording
+    if (len === 0) {
+        playing = false;
+        return;
+    }
+
+    let diff = performance.now() - recordingArray[0].timestamp;
+    let rampTime = 0.08;    
 
     let frameIndex = 0;
-    while (frameIndex < len) {
-        if (performance.now() - diff > recordingArray[frameIndex].timestamp) {
-            for (let i in recordingArray[frameIndex].notes) {
-                noteArray[i].amp(recordingArray[frameIndex].notes[i]);
-            }
-            frameIndex++;
+    while (frameIndex < len && playing) {
+        await waitFor(recordingArray[frameIndex].timestamp - performance.now() + diff);
+        for (let i in recordingArray[frameIndex].notes) {
+            recNoteArray[i].amp(recordingArray[frameIndex].notes[i], rampTime);
         }
+        frameIndex++;
     }
     
     // Reset all keys to 0 amplitude if they were playing when recording finished
+    await waitFor(rampTime * 1000);
     for (let i in noteArray) {
-        noteArray[i].amp(0);
+        recNoteArray[i].amp(0);
     }
+    
+    if (looping && playing) {
+        setTimeout(playRecording, 0); // loop without fear of running out of memory
+        return;
+    }
+
+    playing = false;
+    console.log('Finished playing');
 }
 
+async function waitFor(ms) {
+    await new Promise(r => setTimeout(r, ms));
+} 
+
 function keyPressed(e) {
-    if (e.key.toLowerCase() === 's') {
-        let doRec = true;
-        if (!recording) {
-            doRec = confirm('Begin recording? This will delete any previous recording');
-            if (doRec) recordingArray = [];
-        }
-        else alert('Recording complete! Press p to play');
-        if (doRec) recording = !recording;
+    switch (e.key.toLowerCase()) {
+        case 's':
+            let doRec = true;
+            if (!recording) {
+                if (playing) break; // don't start recording if currently playing previous recording
+                doRec = confirm('Begin recording? This will delete any previous recording');
+                if (doRec) recordingArray = [];
+            }
+            else alert('Recording complete! Press p to play/pause. Press l to loop');
+
+            if (doRec) recording = !recording;
+            console.log(`${recording?'Start':'Finish'}ed recording`);
+
+            break;
+        case 'p':
+            playing = !playing;
+            if (playing) playRecording();
+            console.log(`${playing?'Start':'Finish'}ed playing`);
+            break;
+        case 'l':
+            looping = !looping;
+            console.log(`Looping is now %c${looping?'on':'off'}`, `color: ${looping?'limegreen':'blue'}`);
+            break;
     }
-    if (e.key.toLowerCase() === 'p') playRecording();
 }
